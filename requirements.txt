@@ -1,0 +1,8 @@
+langchain-ollama
+langchain-community
+langchain-core
+langchain-text-splitters
+rank_bm25
+langchain-pymupdf4llm
+langgraph
+langchain-huggingface
