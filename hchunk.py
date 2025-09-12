@@ -14,7 +14,7 @@ logging.basicConfig(
 PDF_PATH = 'true_test.pdf'
 EMBEDDING_MODEL_NAME = 'intfloat/multilingual-e5-large'
 
-class HierarichicalLC:
+class HierarchicalLC:
     def __init__(self, collection_name, persist_directory = './chromadb', embedding_fn = None):
         self.collection_name = collection_name
         self.vector_store = chromadb.PersistentClient(path = persist_directory)
@@ -95,17 +95,37 @@ class HierarichicalLC:
         logging.info(f'Successfully added {chunks}')
 
 def combine_retrieved_docs(query, chunker):
+    combined = []
     res_parent = chunker.collection.query(
         query_text = [query],
         n_results = 5,
         where = {'chunk_level' : 'parent'}
-    )['documents'][0]
+    )
     res_child = chunker.collection.query(
         query_text = [query],
-        n_results = 10,
+        n_results = 8,
         where = {'chunk_level' : 'child'}
-    )['documents'][0]
-    return res_parent + res_child
+    )
+
+    if res_parent:
+        for i in range(len(res_parent)):
+            combined.append(
+                Document(
+                    page_content = res_parent['documents'][0][i],
+                    metadata = res_parent['metadatas'][0][i]
+                )
+            )
+    if res_child:
+        for i in range(len(res_child)):
+            combined.append(
+                Document(
+                    page_content = res_child['documents'][0][i],
+                    metadata = res_child['metadatas'][0][i]
+                )
+            )
+    logging.info(f"Retrieved {len(combined)} most relevant chunks.")
+    return combined
+    
 
 
 if __name__ == '__main__':

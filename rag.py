@@ -10,7 +10,7 @@ from langchain_ollama import ChatOllama
 from FlagEmbedding import FlagReranker
 
 # Import from your other project files
-from hchunk import HierarichicalLC
+from hchunk import HierarchicalLC
 from load import load_from_document, PDF_PATH
 # This import now assumes your reranker.py is correct
 from reranker import rerank_documents_vn, VN_MODEL
