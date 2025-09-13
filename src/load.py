@@ -6,19 +6,20 @@ from langchain.docstore.document import Document
 from langchain_pymupdf4llm import PyMuPDF4LLMLoader
 from langchain_community.document_loaders.parsers.images import TesseractBlobParser
 from langdetect import detect, LangDetectException
-import chromadb
-from chromadb.utils import embedding_functions
 from uuid import uuid4
 import logging
 from underthesea import word_tokenize
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-print('import completed')
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-PDF_PATH = 'true_test.pdf'
+logging.info('import completed')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
+PROCESSED_DIR = os.path.join(BASE_DIR, '..', 'processed')
+os.makedirs(PROCESSED_DIR, exist_ok=True)
 VIET_PATTERN = re.compile(r'[\w\sÀ-ỹ\u0300-\u036F.,;:!?()“”‘’\-–—]+', re.UNICODE)
 JAP_PATTERN = re.compile(r"[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+") #Hiragana, Katakana, Kanji
 def detect_language_with_fallback(text, fallback='vi'):
@@ -57,19 +58,27 @@ def preprocess_jpn(text):
 
     return text
 
-def load_from_document(path):
-    loader = PyMuPDF4LLMLoader(
-        path, 
-        mode='page', 
-        extract_images=True,
-        images_parser=TesseractBlobParser(langs=['vie', 'jpn', 'eng']),
-        table_strategy='lines'
-    )
-    if os.path.exists(f'{path}.pkl'):
-        logging.info(f'Loading document from {path}.pkl')
-        with open(f'{path}.pkl', 'rb') as f:
-            documents = pickle.load(f)
-        return documents
+def load_from_document(path : str) -> List[Document]:
+    pdf_path = os.path.join(DATA_DIR, f'{path}.pdf')
+    if not os.path.exists(pdf_path):
+        logging.error('File does not exist.')
+        return [], []
+    cache_path = os.path.join(PROCESSED_DIR, f'{path}.pkl')
+    if os.path.exists(cache_path):
+        logging.info(f'Loading document from {cache_path}')
+        with open(f'{cache_path}', 'rb') as f:
+            return pickle.load(f)
+    try:    
+        loader = PyMuPDF4LLMLoader(
+            pdf_path, 
+            mode='page', 
+            extract_images=True,
+            images_parser=TesseractBlobParser(langs=['vie', 'jpn', 'eng']),
+            table_strategy='lines'
+        )
+        logging.info('Initialized loader')
+    except Exception as e:
+        logging.error(e)
     logging.info(f'Processing PDF')
     docs = loader.lazy_load()
     vietnamese_docs, japanese_docs = [], []
@@ -97,12 +106,15 @@ def load_from_document(path):
                         metadata={**doc.metadata, 'language': 'ja'}
                     )
                 )
-    with open(f'{path}.pkl', 'wb') as f:
+    with open(f'{cache_path}', 'wb') as f:
         pickle.dump([vietnamese_docs, japanese_docs], f)
-    logging.info(f'Saved documents to {path}.pkl')
+    logging.info(f'Saved documents to {cache_path}')
     return vietnamese_docs, japanese_docs
 
 
 #test
 if __name__ == '__main__':
-    vietnamese_docs, japanese_docs = load_from_document(PDF_PATH)
+    print('Testing load.py...')
+    # Now we call it with just the filename
+    load_from_document("true_test")
+    print('load.py test complete.')

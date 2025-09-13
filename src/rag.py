@@ -10,13 +10,13 @@ from langchain_ollama import ChatOllama
 from FlagEmbedding import FlagReranker
 
 # Import from your other project files
-from hchunk import HierarchicalLC
-from load import load_from_document, PDF_PATH
+from hchunk import HierarichicalLC, combine_retrieved_docs, DB_DIR
+from load import load_from_document
 # This import now assumes your reranker.py is correct
 from reranker import rerank_documents_vn, VN_MODEL
 
 # --- Configuration ---
-MODEL_NAME = 'llama3.1:8b'
+MODEL_NAME = 'llama3.1:8b-instruct-q4_K_M'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Relevance Check Router ---
@@ -24,7 +24,6 @@ class RelevanceCheck(BaseModel):
     is_relevant: bool = Field(description="A boolean value indicating if the context can answer the query.")
 
 def is_context_relevant(query: str, context: str, llm: ChatOllama) -> bool:
-    # ... (This function remains the same as before)
     parser = PydanticOutputParser(pydantic_object=RelevanceCheck)
     prompt = PromptTemplate(
         template="""You are an expert at evaluating the relevance of a given context to a user's query.
@@ -58,48 +57,38 @@ class RAG_Pipeline:
 
     def _retrieve_and_rerank(self, query: str) -> List[Document]:
         logging.info(f"Retrieving documents for query: '{query}'")
-        child_results = self.chunker.collection.query(
-            query_texts=[query], n_results=10, where={"chunk_level": "child"}
+        retrieved_documents = combine_retrieved_docs(query = query, chunker = self.chunker)
+        logging.info(f"Reranking documents...")
+        reranked = rerank_documents_vn(
+            question = query,
+            docs = retrieved_documents,
+            reranker = self.reranker
         )
-        parent_ids = list(set(meta.get('parent_id') for meta in child_results['metadatas'][0] if meta.get('parent_id')))
-        if not parent_ids:
-            logging.warning("No parent documents found.")
-            return []
-        
-        # parent_docs_data is a dictionary of raw lists
-        parent_docs_data = self.chunker.collection.get(ids=parent_ids)
-
-        # --- KEY FIX IS HERE ---
-        # Reconstruct Document objects from the raw ChromaDB output
-        initial_docs = [
-            Document(page_content=text, metadata=meta) 
-            for text, meta in zip(parent_docs_data['documents'], parent_docs_data['metadatas'])
-        ]
-        logging.info(initial_docs)
-        # -----------------------
-
-        logging.info(f"Reranking {len(initial_docs)} documents.")
-        # Now, rerank_documents_vn receives the correct List[Document] type
-        reranked = rerank_documents_vn(query, initial_docs, self.reranker, top_k=3)
+        logging.info('Reranked documents')
         return reranked
 
     def ask_stream(self, query: str):
         # ... (This function remains the same as before)
         reranked_docs = self._retrieve_and_rerank(query)
         if not reranked_docs:
-            yield "I could not find any relevant information in the documents."
+            yield "Không thể tìm thấy thông tin dựa vào câu hỏi."
             return
         context = "\n---\n".join([doc.page_content for doc in reranked_docs])
         if not is_context_relevant(query, context, self.llm):
-            logging.warning("Context deemed not relevant by the router.")
-            yield "The retrieved documents do not contain a relevant answer to your question."
+            logging.warning("Không thể tìm thấy tài liệu liên quan dựa vào câu trả lời.")
+            yield "Không trích xuất được tài liệu liên quan đến câu hỏi."
             return
         logging.info("Context is relevant. Proceeding to generation.")
-        generation_template = """You are a helpful assistant. Answer the user's question based ONLY on the following context.
-        If the answer is not in the context, say you don't know. Be concise.
-        Context: {context}
-        Question: {question}
-        """
+        generation_template = """Bạn là một trợ lý hữu ích. Hãy trả lời câu hỏi của người dùng chỉ dựa vào ngữ cảnh sau đây.
+                                Nếu câu trả lời không có trong ngữ cảnh, hãy nói rằng bạn không biết.
+                                Hãy trả lời một cách chi tiết và đầy đủ, trích xuất tất cả các thông tin liên quan từ ngữ cảnh được cung cấp.
+
+                                Ngữ cảnh:
+                                ---
+                                {context}
+                                ---
+                                Câu hỏi: {question}
+                                """
         prompt = PromptTemplate.from_template(generation_template)
         chain = prompt | self.llm
         for chunk in chain.stream({"context": context, "question": query}):
@@ -107,16 +96,20 @@ class RAG_Pipeline:
 
 # --- Main Execution Block ---
 if __name__ == "__main__":
-    vietnamese_docs, _ = load_from_document(PDF_PATH)
-    chunker = HierarichicalLC('main_policies', 'database/chromadb')
+    path_name = input('Path name : ')
+    vietnamese_docs, _ = load_from_document(path_name)
+    chunker = HierarichicalLC('vn_legal', DB_DIR)
     chunker.chunk_and_store(vietnamese_docs)
     llm = ChatOllama(model=MODEL_NAME, temperature=0)
     reranker = FlagReranker(VN_MODEL, use_fp16=True)
     pipeline = RAG_Pipeline(chunker, llm, reranker)
-    user_query = "Giờ làm việc cơ bản là gì?"
-    print(f"\n--- Querying with: '{user_query}' ---")
-    full_response = ""
-    for chunk in pipeline.ask_stream(user_query):
-        print(chunk, end="", flush=True)
-        full_response += chunk
-    print("\n--- End of Response ---")
+    while True:
+        user_query = input('Query : ')
+        if user_query.lower() == 'exit':
+            break
+        print(f"\n--- Querying with: '{user_query}' ---")
+        full_response = ""
+        for chunk in pipeline.ask_stream(user_query):
+            print(chunk, end="", flush=True)
+            full_response += chunk
+        print("\n--- End of Response ---")

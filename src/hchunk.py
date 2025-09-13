@@ -11,11 +11,15 @@ logging.basicConfig(
     level = logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-PDF_PATH = 'true_test.pdf'
+logging.info('Imported')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_DIR = os.path.join(BASE_DIR, 'vecdb', 'database', 'chromadb')
+logging.info(DB_DIR)
 EMBEDDING_MODEL_NAME = 'intfloat/multilingual-e5-large'
 
-class HierarchicalLC:
-    def __init__(self, collection_name, persist_directory = './chromadb', embedding_fn = None):
+class HierarichicalLC:
+    def __init__(self, collection_name, persist_directory = DB_DIR, embedding_fn = None):
+        os.makedirs(persist_directory, exist_ok=True)
         self.collection_name = collection_name
         self.vector_store = chromadb.PersistentClient(path = persist_directory)
         if embedding_fn is None:
@@ -97,26 +101,26 @@ class HierarchicalLC:
 def combine_retrieved_docs(query, chunker):
     combined = []
     res_parent = chunker.collection.query(
-        query_text = [query],
+        query_texts = [query],
         n_results = 5,
         where = {'chunk_level' : 'parent'}
     )
     res_child = chunker.collection.query(
-        query_text = [query],
-        n_results = 8,
+        query_texts = [query],
+        n_results = 5,
         where = {'chunk_level' : 'child'}
     )
 
-    if res_parent:
-        for i in range(len(res_parent)):
+    if res_parent and res_parent['ids'][0]:
+        for i in range(len(res_parent['ids'][0])):
             combined.append(
                 Document(
                     page_content = res_parent['documents'][0][i],
                     metadata = res_parent['metadatas'][0][i]
                 )
             )
-    if res_child:
-        for i in range(len(res_child)):
+    if res_child and res_child['ids'][0]:
+        for i in range(len(res_child['ids'][0])):
             combined.append(
                 Document(
                     page_content = res_child['documents'][0][i],
@@ -125,11 +129,11 @@ def combine_retrieved_docs(query, chunker):
             )
     logging.info(f"Retrieved {len(combined)} most relevant chunks.")
     return combined
-    
+
 
 
 if __name__ == '__main__':
-    vn_docs, jap_docs = load_from_document(PDF_PATH)
-    chunker = HierarichicalLC('main_policies','database/chromadb')
+    vn_docs, jap_docs = load_from_document('test_doc')
+    chunker = HierarichicalLC('vn_legal',DB_DIR)
     chunker.chunk_and_store(vn_docs)
     logging.info('Testing completed')
