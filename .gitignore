@@ -1,0 +1,4 @@
+data/
+notebooks/
+processed/
+src/vecdb/database/chromadb

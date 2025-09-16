@@ -9,7 +9,7 @@ logging.basicConfig(
 )
 JP_MODEL = ''
 VN_MODEL = 'namdp-ptit/ViRanker'
-def rerank_documents_vn(question: str, docs: List[Document], reranker : FlagReranker ,top_k = 5) -> list[Document]:
+def rerank_documents_vn(question: str, docs: List[Document], reranker : FlagReranker ,top_k = 10) -> list[Document]:
     pairs = [(question, doc.page_content) for doc in docs]
     scores = reranker.compute_score(pairs)
     doc_score_pairs = list(zip(docs, scores))

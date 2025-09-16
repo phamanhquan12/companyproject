@@ -10,7 +10,7 @@ from uuid import uuid4
 import logging
 from underthesea import word_tokenize
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/opt/tesseract/bin/tesseract'
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -116,5 +116,5 @@ def load_from_document(path : str) -> List[Document]:
 if __name__ == '__main__':
     print('Testing load.py...')
     # Now we call it with just the filename
-    load_from_document("true_test")
+    load_from_document("true_test2")
     print('load.py test complete.')

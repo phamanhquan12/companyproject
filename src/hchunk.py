@@ -7,6 +7,8 @@ from typing import List
 from langchain_core.documents import Document
 from load import load_from_document
 from uuid import uuid4
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_community.embeddings import SentenceTransformerEmbeddings
 logging.basicConfig(
     level = logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -16,7 +18,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_DIR = os.path.join(BASE_DIR, 'vecdb', 'database', 'chromadb')
 logging.info(DB_DIR)
 EMBEDDING_MODEL_NAME = 'intfloat/multilingual-e5-large'
-
+EMBEDDING_FN = SentenceTransformerEmbeddings(
+    model_name = EMBEDDING_MODEL_NAME,
+    model_kwargs = {'device' : 'cpu'},
+    encode_kwargs = {'normalize_embeddings' : True}
+)
 class HierarichicalLC:
     def __init__(self, collection_name, persist_directory = DB_DIR, embedding_fn = None):
         os.makedirs(persist_directory, exist_ok=True)
@@ -40,14 +46,20 @@ class HierarichicalLC:
         self.parent_splitter = RecursiveCharacterTextSplitter(
             chunk_size = 1200,
             chunk_overlap = 200,
-            separators = ['\n', '.', ' ', ''],
+            separators = ['\n\n','\n', '.', ' ', ''],
             keep_separator = True
         )
         self.child_splitter = RecursiveCharacterTextSplitter(
-            chunk_size = 500,
-            chunk_overlap = 50,
-            separators = ['\n', '.', ' ', ''],
+            chunk_size = 400,
+            chunk_overlap = 40,
+            separators = ['\n\n','\n', '.', ' ', ''],
             keep_separator = True
+        )
+
+        self.semantic_splitter = SemanticChunker(
+            EMBEDDING_FN,
+            breakpoint_threshold_type='percentile',
+            breakpoint_threshold_amount=85
         )
     def chunk_and_store(self, documents: List[Document]):
         if self.collection.count() > 0:
@@ -60,7 +72,6 @@ class HierarichicalLC:
         return all_chunks
     def _chunk(self, documents: List[Document]) -> List[Document]:
         parent_chunks, child_chunks = [], []
-
         for doc in documents:
             p_docs = self.parent_splitter.split_documents([doc])
             for p_doc in p_docs:
@@ -76,6 +87,7 @@ class HierarichicalLC:
                     c_doc.metadata['parent_id'] = parent_id
                     c_doc.metadata['id'] = child_id
                     child_chunks.append(c_doc)
+        
         return parent_chunks + child_chunks
     def _add_to_vector_store(self, chunks: List[Document]):
         """
@@ -102,12 +114,12 @@ def combine_retrieved_docs(query, chunker):
     combined = []
     res_parent = chunker.collection.query(
         query_texts = [query],
-        n_results = 5,
+        n_results = 20,
         where = {'chunk_level' : 'parent'}
     )
     res_child = chunker.collection.query(
         query_texts = [query],
-        n_results = 5,
+        n_results = 25,
         where = {'chunk_level' : 'child'}
     )
 
