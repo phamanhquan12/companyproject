@@ -2,3 +2,4 @@ data/
 notebooks/
 processed/
 src/vecdb/database/chromadb
+src/test.py
