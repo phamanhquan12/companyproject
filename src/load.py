@@ -49,11 +49,31 @@ def preprocess_vie(text):
         pass
     text = re.sub(r"\s+", ' ', text).strip()
     return text
+import re
+
 def preprocess_jpn(text):
-    VIET_LATIN_PATTERN = re.compile(r'[a-zA-ZÀ-ỹ\u0300-\u036F]+')
-    text = VIET_LATIN_PATTERN.sub('', text)
-    JP_KEEP_PATTERN = re.compile(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF。、・「」『』（）！？…―\s]')
-    text = ''.join(char for char in text if JP_KEEP_PATTERN.match(char))
+    # Remove unwanted control characters
+    text = re.sub(r'[\x00-\x1F\x7F]', '', text)
+
+    # Define allowed character classes:
+    # - Hiragana, Katakana
+    # - Kanji
+    # - Common Japanese punctuation
+    # - Latin letters (basic + accents)
+    # - Digits
+    JP_KEEP_PATTERN = re.compile(
+        r'[\u3040-\u309F'   # Hiragana
+        r'\u30A0-\u30FF'   # Katakana
+        r'\u4E00-\u9FFF'   # Kanji
+        r'0-9'             # Numbers
+        r'a-zA-ZÀ-ÿ'       # Latin + Vietnamese accents
+        r'。、・「」『』（）［］｛｝！？…―：；,\.\-\s]'  # punctuation + spaces
+    )
+
+    # Filter text
+    text = ''.join(ch for ch in text if JP_KEEP_PATTERN.match(ch))
+
+    # Normalize whitespace
     text = re.sub(r'\s+', ' ', text).strip()
 
     return text
@@ -116,5 +136,5 @@ def load_from_document(path : str) -> List[Document]:
 if __name__ == '__main__':
     print('Testing load.py...')
     # Now we call it with just the filename
-    load_from_document("true_test2")
+    load_from_document("true_test")
     print('load.py test complete.')
