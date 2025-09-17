@@ -114,12 +114,12 @@ def combine_retrieved_docs(query, chunker):
     combined = []
     res_parent = chunker.collection.query(
         query_texts = [query],
-        n_results = 20,
+        n_results = 15,
         where = {'chunk_level' : 'parent'}
     )
     res_child = chunker.collection.query(
         query_texts = [query],
-        n_results = 25,
+        n_results = 20,
         where = {'chunk_level' : 'child'}
     )
 
@@ -140,6 +140,7 @@ def combine_retrieved_docs(query, chunker):
                 )
             )
     logging.info(f"Retrieved {len(combined)} most relevant chunks.")
+    logging.info(f"Chunks : {combined}")
     return combined
 
 

@@ -7,7 +7,7 @@ logging.basicConfig(
     level = logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-JP_MODEL = ''
+JP_MODEL = 'hotchpotch/japanese-reranker-cross-encoder-large-v1'
 VN_MODEL = 'namdp-ptit/ViRanker'
 def rerank_documents_vn(question: str, docs: List[Document], reranker : FlagReranker ,top_k = 10) -> list[Document]:
     pairs = [(question, doc.page_content) for doc in docs]
