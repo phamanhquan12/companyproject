@@ -8,7 +8,8 @@ from langchain_core.documents import Document
 from load import load_from_document
 from uuid import uuid4
 from langchain_experimental.text_splitter import SemanticChunker
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+# from langchain_community.embeddings import SentenceTransformerEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 logging.basicConfig(
     level = logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -18,7 +19,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_DIR = os.path.join(BASE_DIR, 'vecdb', 'database', 'chromadb')
 logging.info(DB_DIR)
 EMBEDDING_MODEL_NAME = 'intfloat/multilingual-e5-large'
-EMBEDDING_FN = SentenceTransformerEmbeddings(
+EMBEDDING_FN = HuggingFaceEmbeddings(
     model_name = EMBEDDING_MODEL_NAME,
     model_kwargs = {'device' : 'cpu'},
     encode_kwargs = {'normalize_embeddings' : True}

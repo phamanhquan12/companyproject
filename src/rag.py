@@ -16,7 +16,6 @@ from FlagEmbedding import FlagReranker
 from hchunk import HierarichicalLC, combine_retrieved_docs, DB_DIR
 from load import load_from_document
 from reranker import rerank_documents_vn, VN_MODEL
-
 MODEL_NAME = 'llama3.1:8b'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -120,7 +119,7 @@ class RAG_Pipeline:
 
         reranked_docs, retrieved_docs = self._retrieve_and_rerank(query)
         log_data['combine_retrieved_documents'] = [doc.page_content for doc in retrieved_docs]
-        # log_data["reranked_doc_metadata"] = [doc.metadata for doc in reranked_docs]
+        log_data['reranked_documents'] = [doc.page_content for doc in reranked_docs]
 
         
         if not reranked_docs or not retrieved_docs:
@@ -134,7 +133,7 @@ class RAG_Pipeline:
             page = doc.metadata.get('page', 'N/A')
             content = doc.page_content
             context_source = f'''
-                            Trang : {page},
+                            Trang {page},
                             Nội dung : {content}
                                 '''
             context_sources.append(context_source)
