@@ -1,0 +1,23 @@
+# Git and virtual environment folders
+.git
+.gitignore
+.venv/
+
+# Python Caches
+**/__pycache__/
+*.pyc
+
+# Environment variables file
+.env
+
+# Local Data, Caches, and DBs
+# We ignore the local cache, as the container will build its own.
+processed/
+uploads/
+pg_data/
+
+# Log files and IDE settings
+*.log
+*.jsonl
+.vscode/
+.idea/
