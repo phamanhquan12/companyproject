@@ -4,6 +4,7 @@ import torch
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from uuid import uuid4
+from sqlalchemy import select, or_
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
@@ -17,13 +18,14 @@ load_dotenv()
 
 EMBEDDING_FN = HuggingFaceEmbeddings(
     model_name = os.getenv('EMBEDDING_MODEL'),
-    model_kwargs = {'device' : 'cuda' if torch.cuda.is_available() else 'cpu'},
+    model_kwargs = {'device' : 'cuda' if torch.cuda.is_available() else 'mps'},
     encode_kwargs = {'normalize_embeddings' : True}
 )
 
 def process_document(file_name : str, media_id : int, format : str = 'pdf'):
     log.info(f"--- Starting processing for: {file_name} ---")
     dir_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'processed')
+    file_path = os.path.join(dir_path, f'{file_name}.pdf')
     try:
         vietnamese_docs, _ = load_from_document(file_name)
         if not vietnamese_docs:
@@ -36,10 +38,17 @@ def process_document(file_name : str, media_id : int, format : str = 'pdf'):
     with SessionLocal() as session:
         source_doc = None
         try:
+            stmt = select(SourceDocument).where(
+                or_(SourceDocument.media_id == media_id, SourceDocument.file_path == file_path))
+            
+            existing_doc = session.execute(stmt).scalars().first()
+            if existing_doc:
+                log.warning(f"Document with media_id {media_id} or path {file_path} already exists. Skipping ingestion.")
+                return
             source_doc = SourceDocument(
                 media_id = media_id,
                 file_name = file_name,
-                file_path = os.path.join(dir_path, f'{file_name}.{format}'),
+                file_path = file_path,
                 page_count = len(vietnamese_docs),
                 status = IngestStatus.PROCESSING
             )
@@ -106,7 +115,7 @@ def process_document(file_name : str, media_id : int, format : str = 'pdf'):
                 )
             session.add_all(all_db_chunks)
             source_doc.status = IngestStatus.COMPLETED
-            source_doc.processedAt = datetime.now(timezone.utc)
+            source_doc.processed_at = datetime.now(timezone.utc)
             session.commit()
         except Exception as e:
             log.error(f'An error occurred during ingestion for {file_name} : {e}')

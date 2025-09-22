@@ -1,7 +1,26 @@
+# Environment variables and virtual environment
 .env
-data/
-notebooks/
+.venv/
+
+# Python Caches
+**/__pycache__/
+*.pyc
+
+# IDE / Editor folders
+.vscode/
+.idea/
+
+# Log files
+*.log
+*.jsonl
+
+# Local Data, Caches, and Uploads
 processed/
-src/vecdb/database/chromadb
-src/test.py
-src/*.jsonl
+uploads/
+src/vecdb/
+
+# FOLDERS WITH SENSITIVE OR REDUNDANT DATA
+# Ignoring 'data' because it contains secured information
+data/
+# Ignoring 'notebooks' as they are considered redundant
+notebooks/

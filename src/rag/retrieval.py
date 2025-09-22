@@ -5,14 +5,15 @@ import torch
 from dotenv import load_dotenv
 from typing import List, Optional
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_huggingface import HuggingFaceEmbeddings
 from FlagEmbedding import FlagReranker
 from sqlalchemy import select
 
 from src.core.database import AsyncSessionLocal
 from src.models.chunks import Chunk, ChunkLevel
 from src.models.source_documents import SourceDocument
-
+from src.workers.processing import EMBEDDING_FN
+load_dotenv()
 logging.basicConfig(
     level = logging.INFO,
     format = '%(asctime)s - %(levelname)s - %(message)s'
@@ -21,11 +22,11 @@ log = logging.getLogger(__name__)
 
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 RERANKER_VN = os.getenv('VN_MODEL')
-EMBEDDING_FN = HuggingFaceEmbeddings(
-    model_name = EMBEDDING_MODEL,
-    model_kwargs = {'device' : 'cuda' if torch.cuda.is_available() else 'cpu'},
-    encode_kwargs = {'normalize_embeddings' : True}
-)
+# EMBEDDING_FN = HuggingFaceEmbeddings(
+#     model_name = EMBEDDING_MODEL,
+#     model_kwargs = {'device' : 'cuda' if torch.cuda.is_available() else 'mps'},
+#     encode_kwargs = {'normalize_embeddings' : True}
+# )
 
 RERANKER = FlagReranker(RERANKER_VN, use_fp16=True)
 

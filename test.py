@@ -1,30 +1,56 @@
-# test_ingestion.py
+# run_tests.py
+import asyncio
 import logging
-from src.workers.processing import process_document
+import argparse
+from src.workers.tasks import process_document_task, delete_document_task
+from src.rag.pipeline import RAG
 
-def main():
-    """
-    A simple script to test the full document ingestion and storage pipeline.
-    """
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    print("--- Starting ingestion test ---")
+# --- CONFIGURE YOUR TESTS HERE ---
+TEST_FILE_NAME = "test_doc" 
+TEST_MEDIA_ID = 101 # Use a unique ID for each file
+TEST_QUERY = "Giờ làm việc cơ bản của nhân viên nhà máy?"
+# --- END OF CONFIGURATION ---
 
-    # --- CONFIGURE YOUR TEST HERE ---
-    # 1. Make sure this file exists in your 'data/' directory (e.g., "true_test.pdf")
-    test_file_name = "test_doc" 
+async def test_query():
+    """Tests the full RAG pipeline from query to answer."""
+    print("--- Testing RAG Query Pipeline ---")
+    pipeline = RAG()
     
-    # 2. Use a sample ID as if it came from the admin database
-    test_media_id = 101 
-    # --- END OF CONFIGURATION ---
+    # Test with a media_id filter
+    answer = await pipeline.ask(query=TEST_QUERY, media_id=None)
+    
+    print("\n--- QUERY ---")
+    print(TEST_QUERY)
+    print("\n--- FINAL ANSWER ---")
+    print(answer)
 
-    try:
-        process_document(
-            file_name=test_file_name,
-            media_id=test_media_id
-        )
-        print("\n--- Ingestion test completed! Check the database to verify. ---")
-    except Exception as e:
-        print(f"\n--- An error occurred during the test: {e} ---")
+def test_ingest():
+    """Tests the ingestion by sending a task to the (future) Celery worker."""
+    print("--- Testing Document Ingestion ---")
+    print("Sending task to the message queue...")
+    # In a real app, your API would call .delay(). For this test,
+    # we can call the function directly to see the output.
+    from src.workers.processing import process_document
+    process_document(file_name=TEST_FILE_NAME, media_id=TEST_MEDIA_ID)
+    print("--- Ingestion test finished. Check worker logs and database. ---")
+
+def test_delete():
+    """Tests the deletion by sending a task to the (future) Celery worker."""
+    print(f"--- Testing Deletion for Media ID: {TEST_MEDIA_ID} ---")
+    from src.workers.delete_documents import delete_documents
+    delete_documents(media_id=TEST_MEDIA_ID)
+    print("--- Deletion test finished. Check worker logs and database. ---")
 
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    parser = argparse.ArgumentParser(description="Test script for the RAG application.")
+    parser.add_argument("test_type", choices=['ingest', 'query', 'delete'], help="The type of test to run.")
+    args = parser.parse_args()
+
+    if args.test_type == 'ingest':
+        test_ingest()
+    elif args.test_type == 'delete':
+        test_delete()
+    elif args.test_type == 'query':
+        asyncio.run(test_query())
