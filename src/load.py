@@ -20,121 +20,74 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
 PROCESSED_DIR = os.path.join(BASE_DIR, '..', 'processed')
 os.makedirs(PROCESSED_DIR, exist_ok=True)
-VIET_PATTERN = re.compile(r'[\w\sÀ-ỹ\u0300-\u036F.,;:!?()“”‘’\-–—]+', re.UNICODE)
-JAP_PATTERN = re.compile(r"[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+") #Hiragana, Katakana, Kanji
-def detect_language_with_fallback(text, fallback='vi'):
-    if len(text.strip()) < 50:  # Too short → unreliable detection
-        return fallback
-    try:
-        lang = detect(text)
-        if lang in ['vi', 'ja']:
-            return lang
-        else:
-            return fallback
-    except LangDetectException:
-        return fallback
-def preprocess_vie(text):
-    text = JAP_PATTERN.sub('', text)
-    vie_chars = "ạảãàáâậầấẩẫăắằặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ"
-    pattern = re.compile(f"([{vie_chars}]) ([{vie_chars}])")
-    while True:
-        new_text = pattern.sub(r"\1\2", text)  
-        if new_text == text:
-            break
-        text = new_text
-    try:
-        tokens = word_tokenize(text)
-        text = " ".join(tokens)
-    except:
-        pass
-    text = re.sub(r"\s+", ' ', text).strip()
-    return text
-import re
-
-def preprocess_jpn(text):
-    # Remove unwanted control characters
-    text = re.sub(r'[\x00-\x1F\x7F]', '', text)
-
-    # Define allowed character classes:
-    # - Hiragana, Katakana
-    # - Kanji
-    # - Common Japanese punctuation
-    # - Latin letters (basic + accents)
-    # - Digits
-    JP_KEEP_PATTERN = re.compile(
-        r'[\u3040-\u309F'   # Hiragana
-        r'\u30A0-\u30FF'   # Katakana
-        r'\u4E00-\u9FFF'   # Kanji
-        r'0-9'             # Numbers
-        r'a-zA-ZÀ-ÿ'       # Latin + Vietnamese accents
-        r'。、・「」『』（）［］｛｝！？…―：；,\.\-\s]'  # punctuation + spaces
-    )
-
-    # Filter text
-    text = ''.join(ch for ch in text if JP_KEEP_PATTERN.match(ch))
-
-    # Normalize whitespace
+def preprocess_text_unified(text: str) -> str:
+    # Replace multiple whitespace characters (spaces, newlines, tabs) with a single space
     text = re.sub(r'\s+', ' ', text).strip()
-
     return text
 
-def load_from_document(path : str) -> List[Document]:
-    pdf_path = os.path.join(DATA_DIR, f'{path}.pdf')
-    if not os.path.exists(pdf_path):
-        logging.error('File does not exist.')
-        return [], []
-    cache_path = os.path.join(PROCESSED_DIR, f'{path}.pkl')
+
+def load_from_document(full_pdf_path: str) -> List[Document]:
+    """
+    Loads a PDF document, processes its pages, and returns a single list of documents.
+    Caches the processed result for faster subsequent loads.
+    
+    Args:
+        full_pdf_path: The full, absolute path to the PDF file.
+    """
+    F_PATH = os.path.join(DATA_DIR, f'{full_pdf_path}.pdf')
+    if not os.path.exists(F_PATH):
+        logging.error(f'File does not exist: {full_pdf_path}')
+        return []
+
+    file_basename = os.path.basename(full_pdf_path)
+    cache_path = os.path.join(PROCESSED_DIR, f'{file_basename}.pkl')
+
     if os.path.exists(cache_path):
-        logging.info(f'Loading document from {cache_path}')
-        with open(f'{cache_path}', 'rb') as f:
+        logging.info(f'Loading document from cache: {cache_path}')
+        with open(cache_path, 'rb') as f:
             return pickle.load(f)
-    try:    
+            
+    try:
+        # We can disable image extraction if documents are primarily text-based
+        # to speed up processing. Set to True if text in images is important.
         loader = PyMuPDF4LLMLoader(
-            pdf_path, 
-            mode='page', 
-            extract_images=True,
-            images_parser=TesseractBlobParser(langs=['vie', 'jpn', 'eng']),
-            table_strategy='lines'
+            F_PATH,
+            # extract_images = True,
+            # images_parser = TesseractBlobParser(langs=['vi','eng','ja']),
+            mode = 'page',
+            table_strategy = "lines",
         )
-        logging.info('Initialized loader')
+        logging.info(f'Initialized loader for {full_pdf_path}')
     except Exception as e:
-        logging.error(e)
-    logging.info(f'Processing PDF')
+        logging.error(f"Failed to initialize loader: {e}")
+        return []
+
     docs = loader.lazy_load()
-    vietnamese_docs, japanese_docs = [], []
+    all_docs = []
 
     for doc in docs:
-        logging.info(f'Processing document: {doc.metadata.get("source", "unknown source")}, page {doc.metadata.get("page", "N/A")}')
-        content = doc.page_content
-        lang = detect_language_with_fallback(content, fallback='vi')
-
-        if lang == 'vi':
-            cleaned = preprocess_vie(content)
-            if len(cleaned) > 10:  
-                vietnamese_docs.append(
-                    Document(
-                        page_content=cleaned,
-                        metadata={**doc.metadata, 'language': 'vi'}
-                    )
+        page_num = doc.metadata.get('page', 'N/A')
+        logging.info(f'Processing page : {page_num}')
+        cleaned_content = preprocess_text_unified(doc.page_content)
+        
+        # Only include pages that have a meaningful amount of text
+        if len(cleaned_content) > 20:  
+            all_docs.append(
+                Document(
+                    page_content=cleaned_content,
+                    metadata=doc.metadata  # Preserve original metadata (like page number)
                 )
-        elif lang == 'ja':
-            cleaned = preprocess_jpn(content)
-            if len(cleaned) > 10:
-                japanese_docs.append(
-                    Document(
-                        page_content=cleaned,
-                        metadata={**doc.metadata, 'language': 'ja'}
-                    )
-                )
-    with open(f'{cache_path}', 'wb') as f:
-        pickle.dump([vietnamese_docs, japanese_docs], f)
-    logging.info(f'Saved documents to {cache_path}')
-    return vietnamese_docs, japanese_docs
-
+            )
+            
+    with open(cache_path, 'wb') as f:
+        pickle.dump(all_docs, f)
+        
+    logging.info(f'Saved {len(all_docs)} processed pages to cache: {cache_path}')
+    return all_docs
 
 #test
 if __name__ == '__main__':
     print('Testing load.py...')
     # Now we call it with just the filename
-    load_from_document("true_test")
+    load_from_document("general_rule")
     print('load.py test complete.')

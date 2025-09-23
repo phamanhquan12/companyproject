@@ -7,7 +7,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_ollama import ChatOllama
 
 from .retrieval import retrieval_and_rerank
-from .definitions import RelevanceCheck, RELEVANCE_PROMPT, GENERATION_PROMPT, REFINEMENT_PROMPT
+from .definitions import RelevanceCheck, RELEVANCE_PROMPT, GENERATION_PROMPT
 
 logging.basicConfig(
     level = logging.INFO,
@@ -31,11 +31,9 @@ class RAG:
             partial_variables = {"format_instructions" : relevance_parser.get_format_instructions()},
         )
         generation_prompt = PromptTemplate.from_template(GENERATION_PROMPT)
-        refinement_prompt = PromptTemplate.from_template(REFINEMENT_PROMPT)
 
         self.relevance_chain = relevance_prompt | self.llm | relevance_parser
         self.generation_chain = generation_prompt | self.llm | StrOutputParser()
-        self.refinement_chain = refinement_prompt | self.llm | StrOutputParser()
 
     
     def _format_context(self, docs : List[Document]) -> str:
@@ -49,7 +47,9 @@ class RAG:
     async def ask(self, query : str, media_id : Optional[int] = None, threshold : int = 7) -> str:
         retrieved_docs = await retrieval_and_rerank(
             query = query,
-            media_id = media_id
+            media_id = media_id,
+            k = 40,
+            top_k = 25
         )
         if not retrieved_docs:
             return log.info("Không tìm thấy thông tin liên quan trong tài liệu.")
@@ -64,15 +64,10 @@ class RAG:
         except Exception as e:
             return log.error(f"Đã xảy ra lỗi trong quá trình kiểm tra mức độ liên quan: {e}")
         
-        initial_answer = await self.generation_chain.ainvoke({
-            "context" : formatted_context,
-            "question" : query
-        })
-        refined_answer = await self.refinement_chain.ainvoke({
-            "context" : formatted_context,
-            "question" : query,
-            "initial_answer" : initial_answer
+        final_answer = await self.generation_chain.ainvoke({
+            "context": formatted_context,
+            "question": query
         })
 
-        return refined_answer
+        return final_answer
         

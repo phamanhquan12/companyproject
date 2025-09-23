@@ -6,9 +6,9 @@ from src.workers.tasks import process_document_task, delete_document_task
 from src.rag.pipeline import RAG
 
 # --- CONFIGURE YOUR TESTS HERE ---
-TEST_FILE_NAME = "test_doc" 
+TEST_FILE_NAME = "luong" 
 TEST_MEDIA_ID = 101 # Use a unique ID for each file
-TEST_QUERY = "Giờ làm việc cơ bản của nhân viên nhà máy?"
+TEST_QUERY = ""
 # --- END OF CONFIGURATION ---
 
 async def test_query():

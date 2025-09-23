@@ -2,8 +2,8 @@
 from src.workers.tasks import process_document_task
 
 # --- Configure your test task ---
-TEST_FILE_NAME = "test_doc"
-TEST_MEDIA_ID = 103 # Use a new, unique media_id
+TEST_FILE_NAME = "luong"
+TEST_MEDIA_ID = 100 # Use a new, unique media_id
 
 print(f"Sending ingestion task for {TEST_FILE_NAME}...")
 
