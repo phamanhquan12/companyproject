@@ -1,7 +1,6 @@
 import asyncio
 import logging 
 import os
-import torch
 from dotenv import load_dotenv
 from typing import List, Optional
 from langchain_core.documents import Document
@@ -21,15 +20,14 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
-RERANKER_VN = os.getenv('VN_MODEL')
-# EMBEDDING_FN = HuggingFaceEmbeddings(
-#     model_name = EMBEDDING_MODEL,
-#     model_kwargs = {'device' : 'cuda' if torch.cuda.is_available() else 'mps'},
-#     encode_kwargs = {'normalize_embeddings' : True}
-# )
-
-RERANKER = FlagReranker(RERANKER_VN, use_fp16=True)
-
+RERANKER_MUL = os.getenv('RERANKER_MODEL')
+RERANKER_VN_MODEL = os.getenv('VN_MODEL')
+RERANKER = FlagReranker(
+    RERANKER_MUL, use_fp16=True
+)
+RERANKER_VN = FlagReranker(
+    RERANKER_VN_MODEL, use_fp16=True
+)
 def rerank_documents_vn(question: str, docs: List[Document], reranker : FlagReranker ,top_k = 10) -> list[Document]:
     pairs = [(question, doc.page_content) for doc in docs]
     scores = reranker.compute_score(pairs)
@@ -58,6 +56,18 @@ async def retrieval_and_rerank(query : str, media_id : Optional[int] = None, k :
         for chunk in child_chunks:
             if chunk.parent_id:
                 parent_ids.add(chunk.parent_id)
+        parent_stmt_base = select(Chunk).where(
+            Chunk.chunk_level == ChunkLevel.PARENT
+        )
+        if media_id is not None:
+            parent_stmt_base = parent_stmt_base.join(SourceDocument).where(SourceDocument.media_id == media_id)
+        parent_stmt_direct = parent_stmt_base.order_by(
+            Chunk.embedding.l2_distance(query_embedding)
+        ).limit(k)
+        parent_stmt_direct_results = await asession.execute(parent_stmt_direct)
+        parent_stmt_direct_chunks = parent_stmt_direct_results.scalars().all()
+
+        parent_ids = parent_ids.union({p.id for p in parent_stmt_direct_chunks})
         if not parent_ids:
             log.warning(f'No parent chunks found for retrieved {len(child_chunks)} child chunks')
             return
@@ -68,7 +78,6 @@ async def retrieval_and_rerank(query : str, media_id : Optional[int] = None, k :
         parent_chunks = [Document(page_content=chunk.content, metadata = chunk.chunk_metadata) for chunk in parent_chunks_table]
         all_chunks = parent_chunks + [Document(page_content=chunk.content, metadata = chunk.chunk_metadata) for chunk in child_chunks]
         log.info(f'Retrieved a total of {len(all_chunks)} chunks for reranking.')
-
     reranked_docs = await asyncio.to_thread(
         rerank_documents_vn, query, all_chunks, RERANKER, top_k
     )

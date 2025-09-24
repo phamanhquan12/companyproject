@@ -7,8 +7,8 @@ from src.rag.pipeline import RAG
 
 # --- CONFIGURE YOUR TESTS HERE ---
 TEST_FILE_NAME = "luong" 
-TEST_MEDIA_ID = 101 # Use a unique ID for each file
-TEST_QUERY = ""
+TEST_MEDIA_ID = 100 # Use a unique ID for each file
+TEST_QUERY = "Nêu nội dụng đầy đủ điều 6, và điều 7"
 # --- END OF CONFIGURATION ---
 
 async def test_query():
@@ -17,7 +17,7 @@ async def test_query():
     pipeline = RAG()
     
     # Test with a media_id filter
-    answer = await pipeline.ask(query=TEST_QUERY, media_id=None)
+    answer = await pipeline.ask(query=TEST_QUERY, media_id=TEST_MEDIA_ID)
     
     print("\n--- QUERY ---")
     print(TEST_QUERY)

@@ -36,6 +36,8 @@ NGỮ CẢNH:
 ---
 
 CÂU HỎI: {question}
+NGÔN NGỮ : {lang}
 
 CÂU TRẢ LỜI CHI TIẾT VÀ ĐẦY ĐỦ (chỉ dựa vào ngữ cảnh):
 """
+

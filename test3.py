@@ -6,6 +6,5 @@ print(path)
 with open(path, 'rb+') as f:
     content = pickle.load(f)
 
-
-print(display(Markdown(content[0].page_content)))
-print(None + 1)
+for c in content:
+    print(c.page_content)

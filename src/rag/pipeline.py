@@ -5,9 +5,9 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_ollama import ChatOllama
-
+from langdetect import detect
 from .retrieval import retrieval_and_rerank
-from .definitions import RelevanceCheck, RELEVANCE_PROMPT, GENERATION_PROMPT
+from .definitions import RelevanceCheck, RELEVANCE_PROMPT, PROMPT_TEMPLATES
 
 logging.basicConfig(
     level = logging.INFO,
@@ -30,26 +30,29 @@ class RAG:
             input_variables = ["query", "context"],
             partial_variables = {"format_instructions" : relevance_parser.get_format_instructions()},
         )
-        generation_prompt = PromptTemplate.from_template(GENERATION_PROMPT)
-
         self.relevance_chain = relevance_prompt | self.llm | relevance_parser
-        self.generation_chain = generation_prompt | self.llm | StrOutputParser()
+        self.generation_chain = {
+            lang : PromptTemplate.from_template(template) | self.llm | StrOutputParser()
+            for lang, template in PROMPT_TEMPLATES.items()
+        }
 
     
     def _format_context(self, docs : List[Document]) -> str:
         context_parts = []
         for doc in docs:
-            page = doc.metadata.get('page_num', 'N/A')
+            page = doc.metadata.get('page', 'N/A')
             context_part = f"Trang {page}:\n{doc.page_content}"
             context_parts.append(context_part)
         return "\n\n---\n\n".join(context_parts)
 
     async def ask(self, query : str, media_id : Optional[int] = None, threshold : int = 7) -> str:
+        lang = detect(query)
+        log.info(f"FOUND LANGUAGE : {lang}")
         retrieved_docs = await retrieval_and_rerank(
             query = query,
             media_id = media_id,
             k = 40,
-            top_k = 25
+            top_k = 20
         )
         if not retrieved_docs:
             return log.info("Không tìm thấy thông tin liên quan trong tài liệu.")
@@ -64,9 +67,10 @@ class RAG:
         except Exception as e:
             return log.error(f"Đã xảy ra lỗi trong quá trình kiểm tra mức độ liên quan: {e}")
         
-        final_answer = await self.generation_chain.ainvoke({
+        final_answer = await self.generation_chain.get(lang, self.generation_chain['vi']).ainvoke({
             "context": formatted_context,
-            "question": query
+            "question": query,
+            "lang" : detect(query)
         })
 
         return final_answer

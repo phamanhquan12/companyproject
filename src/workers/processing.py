@@ -41,6 +41,9 @@ def classify_document(docs: List[Document], threshold : float = .4) -> DocType:
     legal_keyword_count = len(legal_pattern.findall(full_text))
     header_count = len(re.findall(r'^#+\s', full_text, re.MULTILINE))
     table_line_count = full_text.count('|') // 2
+    if legal_keyword_count < 3 and header_count < 5:
+        log.info("Document has few headers and legal keywords. Classifying as UNSTRUCTURED.")
+        return DocType.UNSTRUCTURED
     score = 0
     score += legal_keyword_count * 2.0  # High weight for specific keywords
     score += header_count * 0.5
@@ -61,40 +64,43 @@ def classify_document(docs: List[Document], threshold : float = .4) -> DocType:
         return DocType.UNSTRUCTURED
     
 
-def _chunk_markdown_document(docs: List[Document]) -> List[Document]:
-    headers_to_split_on = [("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")]
-    markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
-    child_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=40)
+def _chunk_structured_document(docs: List[Document]) -> List[Document]:
+    BILINGUAL_LEGAL_SEPARATORS = [
+        "\n\nChương ", "\n\nChapter ", "\n\nPart ",
+        "\n\nĐiều ", "\n\nArticle ", "\n\nSection ", "\n\nSec. ", "\n\nMục ",
+        r"\n\d+\.\s", r"\n[a-z]\)\s", r"\n\(\d+\)\s", r"\n\([a-z]\)\s",
+        "\n\n", "\n", ". ", " "
+    ]
     
+    parent_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,   
+        chunk_overlap=120,    
+        separators=BILINGUAL_LEGAL_SEPARATORS
+    )
+
+    child_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=300,
+        chunk_overlap=30
+    )
+
+    parent_chunks = parent_splitter.split_documents(docs)
+    log.info(f"Split document into {len(parent_chunks)} parent chunks.")
+
     all_chunks = []
-    for doc in docs:
-        page_content = doc.page_content
-        page_number = doc.metadata.get('page') # Get the page number for this doc
-        
-        # Split the content of this specific page by its Markdown headers
-        chunks_from_page = markdown_splitter.split_text(page_content)
-        
-        # Add the original page number back to each new chunk's metadata
-        for chunk in chunks_from_page:
-            chunk.metadata['page'] = page_number
+    for p_doc in parent_chunks:
+        parent_id = str(uuid4())
+        p_doc.metadata['id'] = parent_id
+        p_doc.metadata['chunk_level'] = ChunkLevel.PARENT
+        all_chunks.append(p_doc)
+
+        child_docs = child_splitter.split_documents([p_doc])
+        for c_doc in child_docs:
+            c_doc.metadata['id'] = str(uuid4())
+            c_doc.metadata['chunk_level'] = ChunkLevel.CHILD
+            c_doc.metadata['parent_id'] = parent_id 
+            all_chunks.append(c_doc)
             
-            # --- Hierarchical Logic ---
-            parent_id = str(uuid4())
-            chunk.metadata['id'] = parent_id
-            chunk.metadata['chunk_level'] = ChunkLevel.PARENT
-            all_chunks.append(chunk)
-
-            # You can still create smaller child chunks from these large parent sections
-            # This part is optional if you feel the Markdown sections are small enough.
-            child_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=40)
-            child_docs = child_splitter.split_documents([chunk])
-            for c_doc in child_docs:
-                c_doc.metadata['id'] = str(uuid4())
-                c_doc.metadata['chunk_level'] = ChunkLevel.CHILD
-                c_doc.metadata['parent_id'] = parent_id
-                all_chunks.append(c_doc)
-
-    log.info(f"Split document into {len(all_chunks)} total chunks using Markdown strategy.")
+    log.info(f"Created a total of {len(all_chunks)} chunks ({len(parent_chunks)} parents).")
     return all_chunks
 
 
@@ -167,7 +173,7 @@ def process_document(file_name : str, media_id : int, format : str = 'pdf'):
             
 
             doc_type = classify_document(docs_from_file)
-            all_chunks = _chunk_markdown_document(docs_from_file) if doc_type == DocType.STRUCTURED else _chunk_semantic_document(docs_from_file)
+            all_chunks = _chunk_structured_document(docs_from_file) if doc_type == DocType.STRUCTURED else _chunk_semantic_document(docs_from_file)
             chunks_content = [doc.page_content for doc in all_chunks]
             chunks_embedded = EMBEDDING_FN.embed_documents(chunks_content)
 

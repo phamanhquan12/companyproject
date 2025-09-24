@@ -21,7 +21,10 @@ DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
 PROCESSED_DIR = os.path.join(BASE_DIR, '..', 'processed')
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 def preprocess_text_unified(text: str) -> str:
-    # Replace multiple whitespace characters (spaces, newlines, tabs) with a single space
+    # 1. Remove specific HTML tags like <br>.
+    text = re.sub(r'<br\s*/?>', ' ', text)
+    
+    # 2. Consolidate multiple spaces, newlines, and tabs into a single space.
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
