@@ -4,7 +4,7 @@ import logging
 import argparse
 from src.workers.tasks import process_document_task, delete_document_task
 from src.rag.pipeline import RAG
-
+from src.workers.processing import process_document
 # --- CONFIGURE YOUR TESTS HERE ---
 TEST_FILE_NAME = "luong" 
 TEST_MEDIA_ID = 100 # Use a unique ID for each file
@@ -15,14 +15,23 @@ async def test_query():
     """Tests the full RAG pipeline from query to answer."""
     print("--- Testing RAG Query Pipeline ---")
     pipeline = RAG()
-    
+    while True:
+        route = input("Input new files?: ")
+        if route.lower() == 'yes':
+            file_name = input("Enter file name: ")
+            media_id = int(input("Enter media_id (Optional) :")) 
+            process_document(file_name, media_id)
+            print(f"Ingestion finished.")
+        query = input("Enter query: ")
+        if query.lower() == 'exit':
+            break
     # Test with a media_id filter
-    answer = await pipeline.ask(query=TEST_QUERY, media_id=TEST_MEDIA_ID)
-    
-    print("\n--- QUERY ---")
-    print(TEST_QUERY)
-    print("\n--- FINAL ANSWER ---")
-    print(answer)
+        answer = await pipeline.ask(query= query, media_id= None)
+        
+        print("\n--- QUERY ---")
+        print(query)
+        print("\n--- FINAL ANSWER ---")
+        print(answer)
 
 def test_ingest():
     """Tests the ingestion by sending a task to the (future) Celery worker."""
@@ -30,7 +39,6 @@ def test_ingest():
     print("Sending task to the message queue...")
     # In a real app, your API would call .delay(). For this test,
     # we can call the function directly to see the output.
-    from src.workers.processing import process_document
     process_document(file_name=TEST_FILE_NAME, media_id=TEST_MEDIA_ID)
     print("--- Ingestion test finished. Check worker logs and database. ---")
 

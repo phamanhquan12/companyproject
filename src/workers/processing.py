@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter, MarkdownTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter, MarkdownTextSplitter, TextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
 
 from src.core.database import SessionLocal
@@ -33,7 +33,7 @@ class DocType(enum.Enum):
     STRUCTURED = "STRUCTURED"
     UNSTRUCTURED = "UNSTRUCTURED"
 
-def classify_document(docs: List[Document], threshold : float = .4) -> DocType:
+def classify_document(docs: List[Document], threshold : float = .1) -> DocType:
     full_text = "".join([doc.page_content for doc in docs])
     if not full_text.strip():
         return DocType.UNSTRUCTURED
@@ -54,6 +54,7 @@ def classify_document(docs: List[Document], threshold : float = .4) -> DocType:
     density_score = score / num_lines if num_lines > 0 else 0
     
     log.info(f"Legal Keywords: {legal_keyword_count}, Headers: {header_count}, Table Lines: {table_line_count}")
+    log.info(f"Num lines: {num_lines}")
     log.info(f"Document Structure Score: {density_score:.4f} (Threshold: {threshold})")
 
     if density_score > threshold:
@@ -73,14 +74,18 @@ def _chunk_structured_document(docs: List[Document]) -> List[Document]:
     ]
     
     parent_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,   
+        chunk_size=1200,   
         chunk_overlap=120,    
-        separators=BILINGUAL_LEGAL_SEPARATORS
+        separators=BILINGUAL_LEGAL_SEPARATORS,
+        keep_separator = True
     )
 
     child_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=300,
-        chunk_overlap=30
+        chunk_size=500,
+        chunk_overlap=100,
+        separators=[r"\n\d+\.\s", r"\n[a-z]\)\s", r"\n\(\d+\)\s", r"\n\([a-z]\)\s",
+        "\n\n", "\n", ". ", " "],
+        keep_separator=True
     )
 
     parent_chunks = parent_splitter.split_documents(docs)
@@ -108,7 +113,7 @@ def _chunk_semantic_document(docs: List[Document]) -> List[Document]:
     semantic_splitter = SemanticChunker(
         embeddings=EMBEDDING_FN, 
         breakpoint_threshold_type="percentile", 
-        breakpoint_threshold_amount=95
+        breakpoint_threshold_amount=90
     )
     child_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=40)
     parent_chunks = semantic_splitter.split_documents(docs)

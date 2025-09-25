@@ -5,7 +5,7 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_ollama import ChatOllama
-from langdetect import detect
+from langdetect import detect, LangDetectException
 from .retrieval import retrieval_and_rerank
 from .definitions import RelevanceCheck, RELEVANCE_PROMPT, PROMPT_TEMPLATES
 
@@ -46,7 +46,11 @@ class RAG:
         return "\n\n---\n\n".join(context_parts)
 
     async def ask(self, query : str, media_id : Optional[int] = None, threshold : int = 7) -> str:
-        lang = detect(query)
+        try:
+            lang = detect(query)
+        except LangDetectException as l:
+            log.warning(f"Error in detecion : {l}")
+            lang = "vi"
         log.info(f"FOUND LANGUAGE : {lang}")
         retrieved_docs = await retrieval_and_rerank(
             query = query,

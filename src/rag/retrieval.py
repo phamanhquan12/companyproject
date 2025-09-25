@@ -3,6 +3,7 @@ import logging
 import os
 from dotenv import load_dotenv
 from typing import List, Optional
+from langdetect import detect, LangDetectException
 from langchain_core.documents import Document
 # from langchain_huggingface import HuggingFaceEmbeddings
 from FlagEmbedding import FlagReranker
@@ -79,7 +80,7 @@ async def retrieval_and_rerank(query : str, media_id : Optional[int] = None, k :
         all_chunks = parent_chunks + [Document(page_content=chunk.content, metadata = chunk.chunk_metadata) for chunk in child_chunks]
         log.info(f'Retrieved a total of {len(all_chunks)} chunks for reranking.')
     reranked_docs = await asyncio.to_thread(
-        rerank_documents_vn, query, all_chunks, RERANKER, top_k
+        rerank_documents_vn, query, all_chunks, RERANKER_VN if detect(query) == 'vi' else RERANKER, top_k
     )
     log.info(f'Reranked to the top {len(reranked_docs)} chunks.')
     return reranked_docs    

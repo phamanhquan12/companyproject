@@ -5,10 +5,7 @@ from typing import List
 from langchain.docstore.document import Document
 from langchain_pymupdf4llm import PyMuPDF4LLMLoader
 from langchain_community.document_loaders.parsers.images import TesseractBlobParser
-from langdetect import detect, LangDetectException
-from uuid import uuid4
 import logging
-from underthesea import word_tokenize
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/opt/tesseract/bin/tesseract'
 logging.basicConfig(
@@ -22,10 +19,11 @@ PROCESSED_DIR = os.path.join(BASE_DIR, '..', 'processed')
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 def preprocess_text_unified(text: str) -> str:
     # 1. Remove specific HTML tags like <br>.
+    text = text.replace('*', '')
+    text = text.replace('_', '')
     text = re.sub(r'<br\s*/?>', ' ', text)
-    
-    # 2. Consolidate multiple spaces, newlines, and tabs into a single space.
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
     return text
 
 
@@ -51,14 +49,12 @@ def load_from_document(full_pdf_path: str) -> List[Document]:
             return pickle.load(f)
             
     try:
-        # We can disable image extraction if documents are primarily text-based
-        # to speed up processing. Set to True if text in images is important.
         loader = PyMuPDF4LLMLoader(
             F_PATH,
             # extract_images = True,
             # images_parser = TesseractBlobParser(langs=['vi','eng','ja']),
             mode = 'page',
-            table_strategy = "lines",
+            table_strategy = "lines_strict",
         )
         logging.info(f'Initialized loader for {full_pdf_path}')
     except Exception as e:
@@ -78,7 +74,7 @@ def load_from_document(full_pdf_path: str) -> List[Document]:
             all_docs.append(
                 Document(
                     page_content=cleaned_content,
-                    metadata=doc.metadata  # Preserve original metadata (like page number)
+                    metadata=doc.metadata  
                 )
             )
             
@@ -91,6 +87,5 @@ def load_from_document(full_pdf_path: str) -> List[Document]:
 #test
 if __name__ == '__main__':
     print('Testing load.py...')
-    # Now we call it with just the filename
     load_from_document("general_rule")
     print('load.py test complete.')
