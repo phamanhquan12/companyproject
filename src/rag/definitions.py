@@ -97,3 +97,11 @@ PROMPT_TEMPLATES = {
     "vi": VI_PROMPT
     # Add other languages and their prompts here, e.g., "fr": FR_PROMPT
 }
+
+CONDENSE_QUESTION_PROMPT = """Dựa vào đoạn hội thoại sau và một câu hỏi nối tiếp, hãy diễn đạt lại câu hỏi nối tiếp đó thành một câu hỏi độc lập, giữ nguyên ngôn ngữ gốc.
+
+Lịch sử hội thoại:
+{chat_history}
+
+Câu hỏi nối tiếp: {question}
+Câu hỏi độc lập:"""

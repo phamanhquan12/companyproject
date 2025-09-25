@@ -17,16 +17,38 @@ services:
     ports:
       - "6379:6379"
 
-  # worker:
-  #   build: .
-  #   container_name: rag_worker
-  #   commandd : celery -A src.workers.celery_app worker --loglevel=info   
-  #   environment:
-  #     - DB_URL=${DB_URL}
-  #     - REDIS_URL=${REDIS_URL}
-  #   depends_on:
-  #     - db
-  #     - redis
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: rag_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api/srcp:/app/api/srcp  
+      - ./src:/app/src          
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/Dockerfile 
+    container_name: rag_worker
+    command: celery -A src.workers.celery_app worker --loglevel=info
+    environment:
+      - DB_URL="postgresql+psycopg2://myuser:mypassword@127.0.0.1:5433/ragdb"
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./src:/app             # Map toàn bộ thư mục src vào /app trong container
+      - ./data:/app/data
+      - ./processed:/app/processed
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
 
 volumes:
   pg_data:

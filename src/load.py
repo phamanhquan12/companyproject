@@ -7,7 +7,7 @@ from langchain_pymupdf4llm import PyMuPDF4LLMLoader
 from langchain_community.document_loaders.parsers.images import TesseractBlobParser
 import logging
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/opt/tesseract/bin/tesseract'
+# pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/opt/tesseract/bin/tesseract'
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
