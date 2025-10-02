@@ -1,33 +1,76 @@
-import pickle
+import asyncio
 import os
-import pymupdf4llm
-from langchain_pymupdf4llm import PyMuPDF4LLMLoader
-import re
-from IPython.display import display, Markdown
-path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processed', 'luong.pkl')
-load_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'luong.pdf')
+from dotenv import load_dotenv
 
-content = pymupdf4llm.to_markdown(load_path, show_progress=True, table_strategy='lines_strict', page_chunks=True)
+# Load environment variables from .env file
+load_dotenv()
 
-print(content[0]['metadata'])
+# We must load the environment variables before importing our modules
+from src.workers.processing import process_document
+from src.workers.delete_documents import delete_documents
+from src.rag.pipeline import RAG
 
-print(content[0]['tables'])
-
-print()
-print()
-text = content[0]['text']
-text = text.replace('*', '')
-text = text.replace('_', '')
-text = re.sub(r'<br\s*/?>', ' ', text)
-    
-# 2. Chuẩn hóa các khoảng trắng ngang (space, tab) thành một dấu cách duy nhất
-text = re.sub(r'[ \t]+', ' ', text)
-
-# 3. Chuẩn hóa các dòng trống liên tiếp (3+ dòng mới) thành một dòng trống duy nhất (2 dòng mới)
-text = re.sub(r'\n{3,}', '\n\n', text)
-    
-# 2. Consolidate multiple spaces, newlines, and tabs into a single space.
-
-print(text)
+# --- Test Parameters ---
+FILE_TO_INGEST = "luong"
+# Using a different media_id to avoid conflicts with other tests
+MEDIA_ID = 101
+QUESTION = "Liệt kê cho tôi các bậc nhân viên và mức lương tương ứng"
+# The path to the data directory, relative to the script location
+DATA_DIRECTORY = "data"
 
 
+def print_header(title):
+    """Helper function to print a formatted header."""
+    print("\n" + "="*60)
+    print(f"--- {title} ---")
+    print("="*60)
+
+
+async def main():
+    """Main function to run the CLI test workflow."""
+    print("🚀 Starting RAG System Core Logic (CLI) Test 🚀")
+
+    # --- 1. Ingest and Process Document ---
+    print_header("1. Testing Document Ingestion and Processing")
+    try:
+        file_path = os.path.join(DATA_DIRECTORY, FILE_TO_INGEST)
+        print(f"-> Processing file: {FILE_TO_INGEST}.pdf for media_id: {MEDIA_ID}")
+        # This function handles loading, chunking, embedding, and saving
+        process_document(file_name=FILE_TO_INGEST, media_id=MEDIA_ID)
+        print("-> ✅ Ingestion and processing completed successfully.")
+    except Exception as e:
+        print(f"-> ❌ FAILED during document processing: {e}")
+        # If ingestion fails, we can't proceed with the rest of the test
+        return
+
+    # --- 2. Test RAG Pipeline ---
+    print_header("2. Testing RAG Chat Pipeline")
+    try:
+        print("-> Initializing RAG pipeline...")
+        rag_pipeline = RAG()
+        print(f"-> Asking question: '{QUESTION}'")
+        result = await rag_pipeline.ask(
+            query=QUESTION,
+            media_id=None,
+        )
+        print(f"-> ✅ Answer received: {result.get('answer')}")
+    except Exception as e:
+        print(f"-> ❌ FAILED during RAG pipeline execution: {e}")
+
+    # --- 3. Clean Up ---
+    print_header("3. Cleaning Up Test Data")
+    try:
+        print(f"-> Deleting all data for media_id: {MEDIA_ID}")
+        # This function deletes the source document and all associated chunks
+        delete_documents(media_id=MEDIA_ID)
+        print("-> ✅ Cleanup completed successfully.")
+    except Exception as e:
+        print(f"-> ❌ FAILED during data cleanup: {e}")
+
+    print("\n🏁 CLI Test run finished. 🏁")
+
+
+if __name__ == "__main__":
+    # The RAG pipeline's 'ask' method is async, so we run the main function
+    # within an asyncio event loop.
+    asyncio.run(main())

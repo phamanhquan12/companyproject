@@ -2,6 +2,10 @@ services:
   db:
     image: pgvector/pgvector:pg14
     container_name: rag_postgres
+    ports:
+      - "5433:5432"
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -22,7 +26,7 @@ services:
     container_name: rag_api
     ports:
       - "8000:8000"
-    env_file: .env 
+    env_file: .env
     volumes:
       - ./api/srcp:/app/api/srcp
       - ./src:/app/src
@@ -30,6 +34,9 @@ services:
       - db
       - redis
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
 
   worker:
     build:
@@ -37,7 +44,7 @@ services:
       dockerfile: src/Dockerfile
     container_name: rag_worker
     command: celery -A src.workers.celery_app worker --loglevel=info
-    env_file: .env 
+    env_file: .env
     volumes:
       - ./src:/app/src
       - ./data:/app/data
@@ -46,6 +53,9 @@ services:
       - db
       - redis
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
 
 volumes:
   pg_data:

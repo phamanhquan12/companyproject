@@ -26,7 +26,7 @@ async def test_query():
         if query.lower() == 'exit':
             break
     # Test with a media_id filter
-        answer = await pipeline.ask(query= query, media_id= None)
+        answer = await pipeline.ask(query= query, media_id = media_id if media_id is not '' else None)
         
         print("\n--- QUERY ---")
         print(query)

@@ -41,6 +41,9 @@ class ChatResponse(BaseModel):
     answer: str
     history: List[Tuple[str, str]]
 
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the RAG API"}
 
 @app.post("/ingest", response_model = IngestResponse, summary="Import documents")
 def ingest_document(request : IngestRequest):

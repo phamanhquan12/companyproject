@@ -11,8 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
-COPY ../requirements.txt .
+# Corrected path to requirements.txt
+COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Be more specific about what you copy
+COPY ./src /app/src
+
+ENV PYTHONPATH=/app

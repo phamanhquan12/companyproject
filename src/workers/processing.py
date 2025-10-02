@@ -26,7 +26,7 @@ load_dotenv()
 
 EMBEDDING_FN = HuggingFaceEmbeddings(
     model_name = os.getenv('EMBEDDING_MODEL'),
-    model_kwargs = {'device' : 'cuda' if torch.cuda.is_available() else 'cpu'},
+    model_kwargs = {'device' : 'cuda' if torch.cuda.is_available() else 'mps'},
     encode_kwargs = {'normalize_embeddings' : True}
 )
 class DocType(enum.Enum):

@@ -55,7 +55,7 @@ class RAG:
             formatted_history = "\n".join(
                 [f"Người dùng: {q}\nTrợ lý: {a}" for q, a in chat_history]
             )
-            standalone_question = await self.condense_question_chain.ainvoke({
+            standalone_question = await self.condense_chain.ainvoke({
                 "chat_history": formatted_history,
                 "question": query
             })
